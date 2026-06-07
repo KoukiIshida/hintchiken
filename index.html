@@ -29,7 +29,9 @@
         .q-details { display: none; padding: 15px; }
         .q-details.open { display: block; }
         
-        img { max-width: 100%; max-height: 300px; object-fit: contain; margin: 10px 0; border: 1px solid #eee; }
+        /* 画像を常に中央寄せにする設定 */
+        img { max-width: 100%; max-height: 300px; object-fit: contain; margin: 10px auto; display: block; border: 1px solid #eee; }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: var(--primary); color: white; }
@@ -85,7 +87,7 @@
         </div>
         <hr>
         <div style="text-align:center;">
-            <button onclick="changeHostScreen('host-p3', 'player-wait')">ルール説明へ進む</button>
+            <button onclick="changeHostScreen('host-p3')">ルール説明へ進む</button>
             <button onclick="changeHostScreen('host-p1')" style="background:#888;">管理画面に戻る</button>
         </div>
     </div>
@@ -174,6 +176,13 @@
     <div id="player-wait" class="page" style="text-align:center;">
         <h2>ホストの操作をお待ちください...</h2>
         <p>ゲームが始まるまでこのままお待ちください。</p>
+    </div>
+
+    <!-- 参加者：ルール説明画面 -->
+    <div id="player-rule" class="page">
+        <h1>ルール説明</h1>
+        <div id="player-rule-content"></div>
+        <div id="player-rule-img-container"></div>
     </div>
 
     <!-- 参加者：記憶問題表示画面 -->
@@ -297,7 +306,6 @@
             const saved = await loadFromDB('quizMasterData');
             if (saved) {
                 appData = saved;
-                // 過去のデータ互換性用
                 appData.questions.forEach(q => {
                     if(q.isMemory === undefined) q.isMemory = false;
                     if(q.preText === undefined) q.preText = "";
@@ -355,6 +363,11 @@
                         <label style="cursor:pointer;"><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label>
                         <label style="cursor:pointer;"><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> <b>出題済み</b></label>
                         <label style="cursor:pointer; color:#9C27B0;"><input type="checkbox" id="q-memory-${idx}" ${q.isMemory ? 'checked' : ''} onchange="toggleMemoryFields(${idx})"> <b>記憶</b></label>
+                        
+                        <div style="flex-grow: 1;"></div>
+                        <!-- 登録順の入れ替えボタン -->
+                        <button type="button" onclick="moveQuestionUp(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▲ 上へ</button>
+                        <button type="button" onclick="moveQuestionDown(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▼ 下へ</button>
                     </div>
 
                     <div class="q-details" id="q-details-${idx}">
@@ -430,6 +443,25 @@
             }
         }
 
+        // --- 登録順の入れ替え ---
+        async function moveQuestionUp(idx) {
+            if (idx <= 0) return;
+            await syncDOMToAppData();
+            const temp = appData.questions[idx];
+            appData.questions[idx] = appData.questions[idx - 1];
+            appData.questions[idx - 1] = temp;
+            renderAdminPage();
+        }
+
+        async function moveQuestionDown(idx) {
+            if (idx >= appData.questions.length - 1) return;
+            await syncDOMToAppData();
+            const temp = appData.questions[idx];
+            appData.questions[idx] = appData.questions[idx + 1];
+            appData.questions[idx + 1] = temp;
+            renderAdminPage();
+        }
+
         // --- ルールだけを保存 ---
         async function saveRule() {
             appData.ruleText = document.getElementById('rule-editor').innerHTML;
@@ -439,7 +471,7 @@
             }
             await saveToDB('quizMasterData', appData);
             alert("ルール説明を保存しました！");
-            renderAdminPage(); // 画像ありの表記を更新
+            renderAdminPage(); 
         }
 
         // --- 個別保存処理 ---
@@ -618,13 +650,15 @@
             }
         }
 
-        function changeHostScreen(hostPage, playerPage = null) {
+        function changeHostScreen(hostPage) {
             showPage(hostPage);
             if (hostPage === 'host-p3') {
+                // ホスト画面にルール表示
                 document.getElementById('display-rule-content').innerHTML = appData.ruleText;
                 document.getElementById('display-rule-img-container').innerHTML = appData.ruleImg ? `<img src="${appData.ruleImg}">` : "";
+                // 参加者にもルール画面を表示させる
+                broadcast('show_rule', { ruleText: appData.ruleText, ruleImg: appData.ruleImg });
             }
-            if (playerPage) broadcast('page', { page: playerPage });
         }
 
         // --- 記憶問題の処理 ---
@@ -930,6 +964,10 @@
                 peer.on('data', (data) => {
                     if (data.type === 'page') {
                         showPage(data.page);
+                    } else if (data.type === 'show_rule') {
+                        document.getElementById('player-rule-content').innerHTML = data.ruleText || "";
+                        document.getElementById('player-rule-img-container').innerHTML = data.ruleImg ? `<img src="${data.ruleImg}">` : "";
+                        showPage('player-rule');
                     } else if (data.type === 'show_memory') {
                         showPage('player-memory');
                         const contentArea = document.getElementById('player-memory-content');
