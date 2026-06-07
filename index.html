@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>リアルタイム画像クイズシステム</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #4CAF50; --bg: #f9f9f9; --text: #333; }
         body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.6; }
@@ -17,15 +17,22 @@
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .wysiwyg-toolbar { display: flex; gap: 5px; margin-bottom: 5px; background: #eee; padding: 5px; border-radius: 4px; }
-        .editor { border: 1px solid #ccc; min-height: 100px; padding: 10px; border-radius: 4px; overflow-y: auto; margin-bottom: 15px; }
-        .question-block { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; }
+        .editor { border: 1px solid #ccc; min-height: 100px; padding: 10px; border-radius: 4px; overflow-y: auto; margin-bottom: 15px; background: #fff;}
+        .question-block { border: 1px solid #ddd; margin-bottom: 15px; border-radius: 8px; background: #fafafa; overflow: hidden; }
+        
+        /* 折りたたみ用スタイル */
+        .q-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #e0e0e0; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .q-header:hover { background: #d5d5d5; }
+        .q-details { display: none; padding: 15px; border-top: 1px solid #ddd; }
+        .q-details.open { display: block; }
+        
         img { max-width: 100%; max-height: 300px; object-fit: contain; margin: 10px 0; border: 1px solid #eee; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: var(--primary); color: white; }
         .timer-display { font-size: 48px; font-weight: bold; text-align: center; color: #e74c3c; margin: 20px 0; }
         .hidden-result { cursor: pointer; background: #eee; padding: 10px; border: 1px dashed #aaa; margin: 5px 0; text-align: center; }
-        #qr-container { text-align: center; margin: 20px 0; }
+        #qr-container { display: flex; justify-content: center; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -49,7 +56,7 @@
         <div id="questions-container"></div>
         
         <h3>3. 出題設定と順番</h3>
-        <p>「出題する」にチェックを入れたジャンル名と順番（数字が小さい順）が下に反映されます。</p>
+        <p>「出題する」にチェックを入れたジャンル名と順番が下に反映されます。</p>
         <div id="selected-questions-list"></div>
         
         <br><hr><br>
@@ -219,47 +226,41 @@
          * ======================================================== */
         let appData = {
             ruleText: "", ruleImg: null,
-            questions: [] // { id, genre, exText, exImg, qText, qImg, hText, hImg, ans, include, order, done }
+            questions: [] 
         };
-        let currentPlayIndex = 0; // 現在進行中の問題インデックス（selectedQuestions配列におけるインデックス）
-        let selectedQuestions = []; // 出題対象の問題リスト（ソート済み）
+        let currentPlayIndex = 0; 
+        let selectedQuestions = []; 
         
-        // P2P通信用
         let peer = null;
-        let connections = {}; // host only
-        let myConnection = null; // player only
+        let connections = {}; 
+        let myConnection = null; 
         let roomID = "";
-        let playersData = {}; // { connId: { name, totalScore, currentAnswer, timeTaken, hintUsed, rank } }
+        let playersData = {}; 
         let isHost = false;
 
-        // タイマー用
         let timerInterval = null;
         let startTime = 0;
 
-        // URLパラメータ解析
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
         const roomParam = urlParams.get('room');
 
         window.onload = async () => {
-            // DBからデータ復元
             const saved = await loadFromDB('quizMasterData');
             if (saved) appData = saved;
 
             if (roomParam) {
-                // 参加者モード
                 isHost = false;
                 roomID = roomParam;
                 showPage('player-entry');
                 initPlayerPeer();
             } else {
-                // ホストモード
                 isHost = true;
                 if (mode === 'admin') {
                     renderAdminPage();
                     showPage('host-p1');
                 } else {
-                    renderAdminPage(); // UI構築だけしておく
+                    renderAdminPage(); 
                     initHostPeer();
                     showPage('host-p2');
                 }
@@ -272,7 +273,7 @@
         }
 
         /** ========================================================
-         * ホスト処理：管理画面 (事前登録)
+         * ホスト処理：管理画面
          * ======================================================== */
         function renderAdminPage() {
             document.getElementById('rule-editor').innerHTML = appData.ruleText || "ここにルールを入力...";
@@ -282,36 +283,54 @@
                 const div = document.createElement('div');
                 div.className = 'question-block';
                 div.innerHTML = `
-                    <h4>問題枠 ${idx} ${idx===0 ? '(0問目は例題)' : ''}</h4>
-                    <label>ジャンル: <input type="text" id="q-genre-${idx}" value="${q.genre || ''}"></label><br>
-                    
-                    <b>例題 (テキスト / 画像)</b><br>
-                    <div class="editor" contenteditable="true" id="q-exText-${idx}">${q.exText || ''}</div>
-                    <input type="file" id="q-exImg-${idx}" accept="image/*"><br>
-                    ${q.exImg ? `<small>保存済画像あり</small><br>` : ''}
-                    
-                    <b>問題 (テキスト / 画像)</b><br>
-                    <div class="editor" contenteditable="true" id="q-qText-${idx}">${q.qText || ''}</div>
-                    <input type="file" id="q-qImg-${idx}" accept="image/*"><br>
-                    ${q.qImg ? `<small>保存済画像あり</small><br>` : ''}
-                    
-                    <b>ヒント (テキスト / 画像)</b><br>
-                    <div class="editor" contenteditable="true" id="q-hText-${idx}">${q.hText || ''}</div>
-                    <input type="file" id="q-hImg-${idx}" accept="image/*"><br>
-                    ${q.hImg ? `<small>保存済画像あり</small><br>` : ''}
-                    
-                    <b>解答 (テキストのみ、カンマ区切りで複数正答可)</b><br>
-                    <input type="text" id="q-ans-${idx}" value="${q.ans || ''}"><br>
-                    
-                    <hr>
-                    <label><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label> | 
-                    <label><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> 出題済み</label> |
-                    出題順: <input type="number" style="width:60px;" id="q-order-${idx}" value="${q.order || idx}" onchange="updateSelectedList()">
-                    <button onclick="removeQuestion(${idx})" style="background:#e74c3c; float:right;">削除</button>
+                    <div class="q-header" onclick="toggleQDetails(${idx})">
+                        <div>枠${idx} ${idx===0 ? '(0問目/例題)' : ''} - ジャンル: <span id="q-head-genre-${idx}">${q.genre || '未設定'}</span></div>
+                        <div id="q-toggle-icon-${idx}">▼ 開いて編集</div>
+                    </div>
+                    <div class="q-details" id="q-details-${idx}">
+                        <label>ジャンル: <input type="text" id="q-genre-${idx}" value="${q.genre || ''}" oninput="document.getElementById('q-head-genre-${idx}').innerText = this.value || '未設定'"></label><br>
+                        
+                        <b>例題 (テキスト / 画像)</b><br>
+                        <div class="editor" contenteditable="true" id="q-exText-${idx}">${q.exText || ''}</div>
+                        <input type="file" id="q-exImg-${idx}" accept="image/*"><br>
+                        ${q.exImg ? `<small>保存済画像あり</small><br>` : ''}
+                        
+                        <b>問題 (テキスト / 画像)</b><br>
+                        <div class="editor" contenteditable="true" id="q-qText-${idx}">${q.qText || ''}</div>
+                        <input type="file" id="q-qImg-${idx}" accept="image/*"><br>
+                        ${q.qImg ? `<small>保存済画像あり</small><br>` : ''}
+                        
+                        <b>ヒント (テキスト / 画像)</b><br>
+                        <div class="editor" contenteditable="true" id="q-hText-${idx}">${q.hText || ''}</div>
+                        <input type="file" id="q-hImg-${idx}" accept="image/*"><br>
+                        ${q.hImg ? `<small>保存済画像あり</small><br>` : ''}
+                        
+                        <b>解答 (テキストのみ、カンマ区切りで複数正答可)</b><br>
+                        <input type="text" id="q-ans-${idx}" value="${q.ans || ''}"><br>
+                        
+                        <hr>
+                        <label><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label> | 
+                        <label><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> 出題済み</label> |
+                        出題順: <input type="number" style="width:60px;" id="q-order-${idx}" value="${q.order || idx}" onchange="updateSelectedList()">
+                        <button onclick="removeQuestion(${idx})" style="background:#e74c3c; float:right;">削除</button>
+                    </div>
                 `;
                 container.appendChild(div);
             });
             updateSelectedList();
+        }
+
+        // 折りたたみ切り替え関数
+        function toggleQDetails(idx) {
+            const details = document.getElementById(`q-details-${idx}`);
+            const icon = document.getElementById(`q-toggle-icon-${idx}`);
+            if (details.classList.contains('open')) {
+                details.classList.remove('open');
+                icon.innerText = '▼ 開いて編集';
+            } else {
+                details.classList.add('open');
+                icon.innerText = '▲ 閉じる';
+            }
         }
 
         function addQuestionBlock() {
@@ -367,7 +386,7 @@
 
             await saveToDB('quizMasterData', appData);
             alert("保存しました。スタート画面へ移動します。");
-            window.location.href = window.location.pathname; // Reload without ?mode=admin
+            window.location.href = window.location.pathname; 
         }
 
         /** ========================================================
@@ -375,15 +394,17 @@
          * ======================================================== */
         function initHostPeer() {
             roomID = Math.random().toString(36).substring(2, 8).toUpperCase();
-            peer = new Peer(roomID); // Use default PeerJS signaling server
+            peer = new Peer(roomID); 
             
             peer.on('open', (id) => {
                 const url = window.location.href.split('?')[0] + '?room=' + id;
                 document.getElementById('join-url').innerText = url;
                 document.getElementById('join-url').href = url;
+                
+                // QRコードを生成（確実に表示されるようにコンテナをリセット）
+                document.getElementById("qr-container").innerHTML = "";
                 new QRCode(document.getElementById("qr-container"), { text: url, width: 200, height: 200 });
                 
-                // 選ばれた問題のリストアップ
                 selectedQuestions = appData.questions.filter(q => q.include).sort((a,b) => a.order - b.order);
             });
 
@@ -438,7 +459,6 @@
         function changeHostScreen(hostPage, playerPage = null) {
             showPage(hostPage);
             if (hostPage === 'host-p3') {
-                // ルール表示
                 document.getElementById('display-rule-content').innerHTML = appData.ruleText;
                 document.getElementById('display-rule-img-container').innerHTML = appData.ruleImg ? `<img src="${appData.ruleImg}">` : "";
             }
@@ -446,13 +466,17 @@
         }
 
         function setupQuestion(listIndex) {
+            // エラーガード: 出題する問題が0件の場合
+            if (selectedQuestions.length === 0) {
+                alert("エラー：「出題する」にチェックが入っている問題がありません！\n管理画面に戻り、出題したい問題にチェックを入れて保存し直してください。");
+                return;
+            }
+            if(listIndex >= selectedQuestions.length) return; 
+            
             currentPlayIndex = listIndex;
-            if(currentPlayIndex >= selectedQuestions.length) return; // Error guard
-            
             const q = selectedQuestions[currentPlayIndex];
-            const isQ0 = (q.order === 0 || currentPlayIndex === 0); // 0問目扱いか
+            const isQ0 = (q.order === 0 || currentPlayIndex === 0); 
             
-            // プレイヤーの解答状態をリセット
             for (let id in playersData) {
                 playersData[id].currentAnswer = null;
                 playersData[id].timeTaken = 999999;
@@ -460,7 +484,6 @@
                 playersData[id].rank = 0;
             }
 
-            // ホスト4画面 (例題)
             document.getElementById('host-q-title').innerText = `${isQ0 ? '0問目(例題)' : currentPlayIndex + '問目'} : ${q.genre}`;
             document.getElementById('host-q-example-text').innerHTML = q.exText;
             document.getElementById('host-q-example-img').innerHTML = q.exImg ? `<img src="${q.exImg}">` : "";
@@ -471,7 +494,6 @@
             
             showPage('host-p4');
             
-            // 参加者に送信
             broadcast('show_example', { 
                 title: `${isQ0 ? '0問目(例題)' : currentPlayIndex + '問目'} : ${q.genre}`,
                 exText: q.exText, exImg: q.exImg 
@@ -481,17 +503,14 @@
         function startQuestionTimer() {
             const q = selectedQuestions[currentPlayIndex];
             
-            // UI更新
             document.getElementById('btn-start-question').style.display = 'none';
             document.getElementById('host-timer').style.display = 'block';
             document.getElementById('host-timer').innerText = "60";
             
-            // 参加者に問題データ送信
             broadcast('start_active', {
                 qText: q.qText, qImg: q.qImg, hText: q.hText, hImg: q.hImg
             });
 
-            // 1分タイマー開始
             let timeLeft = 60;
             if(timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -500,12 +519,11 @@
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
                     document.getElementById('btn-show-answer').style.display = 'inline-block';
-                    broadcast('page', { page: 'player-wait' }); // 強制終了
+                    broadcast('page', { page: 'player-wait' }); 
                 }
             }, 1000);
         }
 
-        // P5: 正解表示
         document.getElementById('btn-show-answer').addEventListener('click', () => {
             const q = selectedQuestions[currentPlayIndex];
             const isQ0 = currentPlayIndex === 0;
@@ -517,14 +535,12 @@
             document.getElementById('host-a-ans-text').innerText = q.ans;
         });
 
-        // P6: 集計と順位
         function calculateAndShowRanking() {
             showPage('host-p6');
             const q = selectedQuestions[currentPlayIndex];
             const isQ0 = currentPlayIndex === 0;
             document.getElementById('host-r-title').innerText = `${isQ0 ? '0問目(例題)' : currentPlayIndex + '問目'} 正解者一覧`;
             
-            // 正解判定
             const validAnswers = q.ans.split(',').map(s => s.trim().toLowerCase());
             let correctPlayers = [];
             
@@ -536,13 +552,11 @@
                 }
             }
 
-            // ソート: 1.ヒントなし優先(false), 2.タイム昇順
             correctPlayers.sort((a, b) => {
                 if (a.hintUsed !== b.hintUsed) return a.hintUsed ? 1 : -1;
                 return a.timeTaken - b.timeTaken;
             });
 
-            // 順位付け (同着タイ対応)
             let currentRank = 1;
             let rankCounter = 1;
             let prevHint = null;
@@ -550,14 +564,13 @@
 
             correctPlayers.forEach(p => {
                 if (prevHint === p.hintUsed && prevTime === p.timeTaken) {
-                    p.rank = currentRank; // 同着
+                    p.rank = currentRank; 
                 } else {
                     p.rank = rankCounter;
                     currentRank = rankCounter;
                 }
                 rankCounter++;
                 
-                // 加点 (0問目は集計しない)
                 if (!isQ0) {
                     let bonus = 0;
                     if (p.rank === 1) bonus = 20;
@@ -571,14 +584,12 @@
                 prevTime = p.timeTaken;
             });
 
-            // UI生成
             const container = document.getElementById('ranking-container');
             container.innerHTML = "";
             
             if (correctPlayers.length === 0) {
                 container.innerHTML = "<p>正解者はいませんでした。</p>";
             } else {
-                // 1位、2位、3位のボタン作成
                 [1, 2, 3].forEach(rankNum => {
                     const rankPlayers = correctPlayers.filter(p => p.rank === rankNum);
                     if (rankPlayers.length > 0) {
@@ -598,7 +609,6 @@
                     }
                 });
 
-                // 4位以下のボタン
                 const others = correctPlayers.filter(p => p.rank >= 4);
                 if (others.length > 0) {
                     const btn = document.createElement('div');
@@ -618,7 +628,6 @@
                 }
             }
 
-            // 次へボタン
             const btnContainer = document.getElementById('next-q-btn-container');
             btnContainer.innerHTML = "";
             if (currentPlayIndex + 1 < selectedQuestions.length) {
@@ -634,7 +643,6 @@
             }
         }
 
-        // 最終結果発表
         function showFinalResult() {
             showPage('host-final');
             const allPlayers = Object.values(playersData).sort((a, b) => b.totalScore - a.totalScore);
@@ -643,7 +651,6 @@
 
             if(allPlayers.length === 0) { container.innerHTML = "参加者がいません。"; return; }
 
-            // 同点処理
             let currentRank = 1;
             let rankCounter = 1;
             let prevScore = null;
@@ -707,7 +714,7 @@
             
             const conn = myConnection.connect(roomID);
             conn.on('open', () => {
-                peer = conn; // Use peer var for connection
+                peer = conn; 
                 peer.send({ type: 'join', name: name });
                 showPage('player-wait');
 
@@ -720,12 +727,12 @@
                         document.getElementById('player-q-example-img').innerHTML = data.exImg ? `<img src="${data.exImg}">` : "";
                         showPage('player-example');
                     } else if (data.type === 'start_active') {
-                        // アクティブ画面リセット
                         playerHintUsed = false;
                         document.getElementById('player-question-area').style.display = 'block';
                         document.getElementById('player-hint-area').style.display = 'none';
                         document.getElementById('btn-use-hint').style.display = 'block';
                         document.getElementById('btn-use-hint').disabled = false;
+                        document.getElementById('btn-use-hint').innerText = "💡 ヒントを見る（順位が下がります）";
                         document.getElementById('player-answer-input').value = "";
                         document.getElementById('player-answer-input').disabled = false;
                         document.getElementById('btn-submit-answer').disabled = false;
