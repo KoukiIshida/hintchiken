@@ -34,6 +34,9 @@
         .timer-display { font-size: 48px; font-weight: bold; text-align: center; color: #e74c3c; margin: 20px 0; }
         .hidden-result { cursor: pointer; background: #eee; padding: 10px; border: 1px dashed #aaa; margin: 5px 0; text-align: center; }
         #qr-container { display: flex; justify-content: center; margin: 20px 0; }
+        
+        .order-item { display:flex; justify-content:space-between; background:#fff; border:1px solid #ccc; padding:10px; margin-bottom:5px; border-radius:4px; align-items:center;}
+        .memory-section { background:#e8f5e9; padding:10px; margin:10px 0; border:1px solid #c8e6c9; border-radius:4px; }
     </style>
 </head>
 <body>
@@ -52,16 +55,16 @@
         <div id="rule-editor" class="editor" contenteditable="true">ここにルールを入力...</div>
         <input type="file" id="rule-image-upload" accept="image/*">
         
-        <h3>2. 問題の登録 (0問目は例題扱い)</h3>
+        <h3>2. 問題の登録</h3>
         <button onclick="addQuestionBlock()">＋ 新しい問題を追加する</button>
         <div id="questions-container"></div>
         
         <h3>3. 出題設定と順番</h3>
-        <p>「出題する」にチェックを入れたジャンル名と順番が下に反映されます。</p>
+        <p>「出題する」にチェックを入れた問題がここに表示されます。ここで出題順を並べ替えてください。（一番上が0問目の例題扱いになります）</p>
         <div id="selected-questions-list"></div>
         
         <br><hr><br>
-        <button onclick="saveAllData()" style="width: 100%; font-size: 20px; padding: 15px;">💾 保存してスタート画面へ</button>
+        <button onclick="saveAllData()" style="width: 100%; font-size: 20px; padding: 15px;">💾 全て保存してスタート画面へ</button>
     </div>
 
     <div id="host-p2" class="page">
@@ -84,7 +87,20 @@
         <div id="display-rule-content"></div>
         <div id="display-rule-img-container"></div>
         <div style="text-align:center; margin-top:20px;">
+            <button onclick="checkMemoryQuestions()" style="background:#9C27B0;">記憶問題表示</button>
             <button onclick="setupQuestion(0)">0問目の例題へ</button>
+        </div>
+    </div>
+
+    <div id="host-memory" class="page">
+        <h1>記憶問題 事前チェック</h1>
+        <div class="timer-display" id="host-mem-timer">30</div>
+        
+        <div id="host-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
+            </div>
+        
+        <div style="text-align:center; margin-top:20px;">
+            <button id="btn-mem-next" style="display:none;" onclick="setupQuestion(0)">0問目の例題へ</button>
         </div>
     </div>
 
@@ -140,6 +156,13 @@
         <p>ゲームが始まるまでこのままお待ちください。</p>
     </div>
 
+    <div id="player-memory" class="page">
+        <h2 style="color:#9C27B0;">事前問題（覚えよう！）</h2>
+        <div class="timer-display" id="player-mem-timer">30</div>
+        <div id="player-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
+            </div>
+    </div>
+
     <div id="player-example" class="page">
         <h2 id="player-q-title"></h2>
         <h3>例題</h3>
@@ -172,7 +195,7 @@
 
     <script>
         /** ========================================================
-         * IndexedDB ラッパー (大容量画像保存用)
+         * IndexedDB ラッパー
          * ======================================================== */
         const DB_NAME = 'QuizDB';
         const STORE_NAME = 'QuizData';
@@ -248,7 +271,15 @@
 
         window.onload = async () => {
             const saved = await loadFromDB('quizMasterData');
-            if (saved) appData = saved;
+            if (saved) {
+                appData = saved;
+                // 過去のデータ互換性用
+                appData.questions.forEach(q => {
+                    if(q.isMemory === undefined) q.isMemory = false;
+                    if(q.preText === undefined) q.preText = "";
+                    if(q.preImg === undefined) q.preImg = null;
+                });
+            }
 
             if (roomParam) {
                 isHost = false;
@@ -285,24 +316,26 @@
                 div.className = 'question-block';
                 div.innerHTML = `
                     <div class="q-header" onclick="toggleQDetails(${idx})">
-                        <div>枠${idx} ${idx===0 ? '(0問目/例題)' : ''} - ジャンル: <span id="q-head-genre-${idx}">${q.genre || '未設定'}</span></div>
+                        <div>問題: <span id="q-head-genre-${idx}">${q.genre || '未設定'}</span></div>
                         <div id="q-toggle-icon-${idx}">▼ 開いて編集</div>
                     </div>
                     
                     <div class="q-summary-controls">
                         <label style="cursor:pointer;"><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label>
                         <label style="cursor:pointer;"><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> <b>出題済み</b></label>
-                        <div>出題順: <input type="number" style="width:60px; margin:0; padding:5px;" id="q-order-${idx}" value="${q.order || idx}" onchange="updateSelectedList()"></div>
-                        
-                        <div style="flex-grow: 1;"></div>
-                        
-                        <button type="button" onclick="moveQuestionUp(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▲ 上へ</button>
-                        <button type="button" onclick="moveQuestionDown(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▼ 下へ</button>
+                        <label style="cursor:pointer; color:#9C27B0;"><input type="checkbox" id="q-memory-${idx}" ${q.isMemory ? 'checked' : ''} onchange="toggleMemoryFields(${idx})"> <b>記憶</b></label>
                     </div>
 
                     <div class="q-details" id="q-details-${idx}">
                         <label>ジャンル: <input type="text" id="q-genre-${idx}" value="${q.genre || ''}" oninput="document.getElementById('q-head-genre-${idx}').innerText = this.value || '未設定'; updateSelectedList();"></label><br>
                         
+                        <div id="q-memory-fields-${idx}" class="memory-section" style="display: ${q.isMemory ? 'block' : 'none'};">
+                            <b style="color:#9C27B0;">◆ 事前問題 (テキスト / 画像)</b><br>
+                            <div class="editor" contenteditable="true" id="q-preText-${idx}">${q.preText || ''}</div>
+                            <input type="file" id="q-preImg-${idx}" accept="image/*"><br>
+                            ${q.preImg ? `<small>保存済画像あり</small><br>` : ''}
+                        </div>
+
                         <b>例題 (テキスト / 画像)</b><br>
                         <div class="editor" contenteditable="true" id="q-exText-${idx}">${q.exText || ''}</div>
                         <input type="file" id="q-exImg-${idx}" accept="image/*"><br>
@@ -322,6 +355,7 @@
                         <input type="text" id="q-ans-${idx}" value="${q.ans || ''}"><br>
                         
                         <hr>
+                        <button onclick="saveSingleQuestion(${idx})" style="background:#2196F3; font-weight:bold;">💾 この問題だけを保存</button>
                         <button onclick="removeQuestion(${idx})" style="background:#e74c3c; float:right;">この問題を削除</button>
                         <div style="clear:both;"></div>
                     </div>
@@ -343,8 +377,18 @@
             }
         }
 
+        function toggleMemoryFields(idx) {
+            const isChecked = document.getElementById(`q-memory-${idx}`).checked;
+            document.getElementById(`q-memory-fields-${idx}`).style.display = isChecked ? 'block' : 'none';
+        }
+
         function addQuestionBlock() {
-            appData.questions.push({ id: Date.now(), genre: '', exText: '', exImg: null, qText: '', qImg: null, hText: '', hImg: null, ans: '', include: false, order: appData.questions.length, done: false });
+            appData.questions.push({ 
+                id: Date.now(), genre: '', 
+                isMemory: false, preText: '', preImg: null,
+                exText: '', exImg: null, qText: '', qImg: null, hText: '', hImg: null, ans: '', 
+                include: false, done: false, order: appData.questions.length 
+            });
             renderAdminPage();
         }
 
@@ -355,89 +399,117 @@
             }
         }
 
-        function updateSelectedList() {
-            const listDiv = document.getElementById('selected-questions-list');
-            let temp = [];
-            appData.questions.forEach((q, idx) => {
-                const cb = document.getElementById(`q-include-${idx}`);
-                const ord = document.getElementById(`q-order-${idx}`);
-                const genreField = document.getElementById(`q-genre-${idx}`);
-                if (cb && cb.checked) {
-                    temp.push({ genre: genreField.value, order: parseInt(ord.value) || 0, origIdx: idx });
-                }
-            });
-            temp.sort((a,b) => a.order - b.order);
-            if(temp.length === 0) { listDiv.innerHTML = "なし"; return; }
-            let html = "<ol>";
-            temp.forEach(t => { html += `<li>${t.genre || 'ジャンル未入力'} (元枠:${t.origIdx})</li>`; });
-            html += "</ol>";
-            listDiv.innerHTML = html;
+        // --- 個別保存処理 ---
+        async function saveSingleQuestion(idx) {
+            appData.questions[idx].genre = document.getElementById(`q-genre-${idx}`).value;
+            appData.questions[idx].exText = document.getElementById(`q-exText-${idx}`).innerHTML;
+            appData.questions[idx].qText = document.getElementById(`q-qText-${idx}`).innerHTML;
+            appData.questions[idx].hText = document.getElementById(`q-hText-${idx}`).innerHTML;
+            appData.questions[idx].ans = document.getElementById(`q-ans-${idx}`).value;
+            appData.questions[idx].include = document.getElementById(`q-include-${idx}`).checked;
+            appData.questions[idx].done = document.getElementById(`q-done-${idx}`).checked;
+            
+            appData.questions[idx].isMemory = document.getElementById(`q-memory-${idx}`).checked;
+            appData.questions[idx].preText = document.getElementById(`q-preText-${idx}`).innerHTML;
+
+            const exF = document.getElementById(`q-exImg-${idx}`).files[0]; if(exF) appData.questions[idx].exImg = await fileToBase64(exF);
+            const qF = document.getElementById(`q-qImg-${idx}`).files[0]; if(qF) appData.questions[idx].qImg = await fileToBase64(qF);
+            const hF = document.getElementById(`q-hImg-${idx}`).files[0]; if(hF) appData.questions[idx].hImg = await fileToBase64(hF);
+            const preF = document.getElementById(`q-preImg-${idx}`).files[0]; if(preF) appData.questions[idx].preImg = await fileToBase64(preF);
+
+            await saveToDB('quizMasterData', appData);
+            alert("この問題を保存しました！");
+            renderAdminPage();
         }
 
-        // DOMの入力状態をJSのデータに一時同期させる（保存や並べ替えの前に行う）
+        // --- DOMの入力状態を同期 ---
         async function syncDOMToAppData() {
             appData.ruleText = document.getElementById('rule-editor').innerHTML;
             const ruleImgFile = document.getElementById('rule-image-upload').files[0];
             if (ruleImgFile) appData.ruleImg = await fileToBase64(ruleImgFile);
 
             for (let idx = 0; idx < appData.questions.length; idx++) {
-                const q = appData.questions[idx];
-                q.genre = document.getElementById(`q-genre-${idx}`).value;
-                q.exText = document.getElementById(`q-exText-${idx}`).innerHTML;
-                q.qText = document.getElementById(`q-qText-${idx}`).innerHTML;
-                q.hText = document.getElementById(`q-hText-${idx}`).innerHTML;
-                q.ans = document.getElementById(`q-ans-${idx}`).value;
-                q.include = document.getElementById(`q-include-${idx}`).checked;
-                q.done = document.getElementById(`q-done-${idx}`).checked;
-                q.order = parseInt(document.getElementById(`q-order-${idx}`).value) || 0;
+                if(!document.getElementById(`q-genre-${idx}`)) continue; // 削除された枠はスキップ
+                appData.questions[idx].genre = document.getElementById(`q-genre-${idx}`).value;
+                appData.questions[idx].exText = document.getElementById(`q-exText-${idx}`).innerHTML;
+                appData.questions[idx].qText = document.getElementById(`q-qText-${idx}`).innerHTML;
+                appData.questions[idx].hText = document.getElementById(`q-hText-${idx}`).innerHTML;
+                appData.questions[idx].ans = document.getElementById(`q-ans-${idx}`).value;
+                appData.questions[idx].include = document.getElementById(`q-include-${idx}`).checked;
+                appData.questions[idx].done = document.getElementById(`q-done-${idx}`).checked;
+                
+                appData.questions[idx].isMemory = document.getElementById(`q-memory-${idx}`).checked;
+                appData.questions[idx].preText = document.getElementById(`q-preText-${idx}`).innerHTML;
 
-                const exF = document.getElementById(`q-exImg-${idx}`).files[0]; if(exF) q.exImg = await fileToBase64(exF);
-                const qF = document.getElementById(`q-qImg-${idx}`).files[0]; if(qF) q.qImg = await fileToBase64(qF);
-                const hF = document.getElementById(`q-hImg-${idx}`).files[0]; if(hF) q.hImg = await fileToBase64(hF);
+                const exF = document.getElementById(`q-exImg-${idx}`).files[0]; if(exF) appData.questions[idx].exImg = await fileToBase64(exF);
+                const qF = document.getElementById(`q-qImg-${idx}`).files[0]; if(qF) appData.questions[idx].qImg = await fileToBase64(qF);
+                const hF = document.getElementById(`q-hImg-${idx}`).files[0]; if(hF) appData.questions[idx].hImg = await fileToBase64(hF);
+                const preF = document.getElementById(`q-preImg-${idx}`).files[0]; if(preF) appData.questions[idx].preImg = await fileToBase64(preF);
             }
         }
 
-        // 順番を上に移動
-        async function moveQuestionUp(idx) {
-            if (idx <= 0) return;
-            await syncDOMToAppData();
-            
-            // データを入れ替える
-            const temp = appData.questions[idx];
-            appData.questions[idx] = appData.questions[idx - 1];
-            appData.questions[idx - 1] = temp;
-            
-            // 出題順の数字も入れ替える
-            const tempOrder = appData.questions[idx].order;
-            appData.questions[idx].order = appData.questions[idx - 1].order;
-            appData.questions[idx - 1].order = tempOrder;
-
-            renderAdminPage();
-        }
-
-        // 順番を下に移動
-        async function moveQuestionDown(idx) {
-            if (idx >= appData.questions.length - 1) return;
-            await syncDOMToAppData();
-            
-            // データを入れ替える
-            const temp = appData.questions[idx];
-            appData.questions[idx] = appData.questions[idx + 1];
-            appData.questions[idx + 1] = temp;
-
-            // 出題順の数字も入れ替える
-            const tempOrder = appData.questions[idx].order;
-            appData.questions[idx].order = appData.questions[idx + 1].order;
-            appData.questions[idx + 1].order = tempOrder;
-
-            renderAdminPage();
-        }
-
+        // --- 全体保存 ---
         async function saveAllData() {
             await syncDOMToAppData();
             await saveToDB('quizMasterData', appData);
-            alert("保存しました。スタート画面へ移動します。");
+            alert("全て保存しました。スタート画面へ移動します。");
             window.location.href = window.location.pathname; 
+        }
+
+        // --- 3. 出題順の表示と並び替え ---
+        function updateSelectedList() {
+            const listDiv = document.getElementById('selected-questions-list');
+            
+            // 出題するチェックが入っているものを抽出
+            let includedQs = [];
+            appData.questions.forEach((q, idx) => {
+                const cb = document.getElementById(`q-include-${idx}`);
+                const genreField = document.getElementById(`q-genre-${idx}`);
+                if (cb && cb.checked) {
+                    includedQs.push({ genre: genreField.value, order: q.order, origIdx: idx });
+                }
+            });
+
+            // order順にソートし、実際のorderを振り直す
+            includedQs.sort((a,b) => a.order - b.order);
+            includedQs.forEach((q, i) => {
+                appData.questions[q.origIdx].order = i;
+            });
+
+            if(includedQs.length === 0) { listDiv.innerHTML = "出題する問題がありません"; return; }
+            
+            let html = "";
+            includedQs.forEach((q, i) => {
+                html += `
+                <div class="order-item">
+                    <span><b>${i}問目 ${i===0 ? '(例題)' : ''}</b> : ${q.genre || '未設定'}</span>
+                    <div>
+                        <button type="button" onclick="moveOrder(${q.origIdx}, -1)" style="padding: 5px; margin: 0 2px; background: #607D8B;">▲</button>
+                        <button type="button" onclick="moveOrder(${q.origIdx}, 1)" style="padding: 5px; margin: 0 2px; background: #607D8B;">▼</button>
+                    </div>
+                </div>`;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        async function moveOrder(origIdx, direction) {
+            await syncDOMToAppData();
+            
+            let includedQs = appData.questions.map((q, idx) => ({...q, origIdx: idx})).filter(q => q.include);
+            includedQs.sort((a,b) => a.order - b.order);
+            
+            const currentIndex = includedQs.findIndex(q => q.origIdx === origIdx);
+            if(currentIndex === -1) return;
+            
+            const targetIndex = currentIndex + direction;
+            if(targetIndex < 0 || targetIndex >= includedQs.length) return; // 一番上か一番下
+            
+            // Orderの数値を入れ替え
+            const tempOrder = includedQs[currentIndex].order;
+            appData.questions[includedQs[currentIndex].origIdx].order = includedQs[targetIndex].order;
+            appData.questions[includedQs[targetIndex].origIdx].order = tempOrder;
+
+            renderAdminPage();
         }
 
         /** ========================================================
@@ -513,6 +585,55 @@
                 document.getElementById('display-rule-img-container').innerHTML = appData.ruleImg ? `<img src="${appData.ruleImg}">` : "";
             }
             if (playerPage) broadcast('page', { page: playerPage });
+        }
+
+        // --- 記憶問題の処理 ---
+        function checkMemoryQuestions() {
+            const memQs = selectedQuestions.filter(q => q.isMemory);
+            if (memQs.length === 0) {
+                alert("今回出題される問題の中に「記憶」にチェックが入った問題が0問です。\n記憶問題が設定されていないため、この画面には遷移できません。");
+                return;
+            }
+            
+            if (confirm(`今回出題する問題の中に、記憶問題が【 ${memQs.length}問 】登録されています。\nよろしければ事前問題の表示（30秒カウントダウン）を開始しますか？`)) {
+                startMemoryQuestions(memQs);
+            }
+        }
+
+        function startMemoryQuestions(memQs) {
+            showPage('host-memory');
+            
+            let html = '';
+            memQs.forEach((q, idx) => {
+                html += `<h3>記憶問題 ${idx+1} (${q.genre})</h3>`;
+                html += `<div>${q.preText}</div>`;
+                if(q.preImg) html += `<img src="${q.preImg}">`;
+                html += `<hr style="margin: 20px 0;">`;
+            });
+            
+            const contentArea = document.getElementById('host-memory-content');
+            contentArea.innerHTML = html;
+            contentArea.style.display = 'block';
+            
+            document.getElementById('host-mem-timer').innerText = '30';
+            document.getElementById('btn-mem-next').style.display = 'none';
+
+            // 参加者に送信
+            broadcast('show_memory', { html: html });
+
+            let timeLeft = 30;
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('host-mem-timer').innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    contentArea.style.display = 'none';
+                    document.getElementById('host-mem-timer').innerText = "時間切れ！";
+                    document.getElementById('btn-mem-next').style.display = 'inline-block';
+                    broadcast('hide_memory');
+                }
+            }, 1000);
         }
 
         function setupQuestion(listIndex) {
@@ -770,11 +891,31 @@
                 peer.on('data', (data) => {
                     if (data.type === 'page') {
                         showPage(data.page);
+                    } else if (data.type === 'show_memory') {
+                        showPage('player-memory');
+                        const contentArea = document.getElementById('player-memory-content');
+                        contentArea.innerHTML = data.html;
+                        contentArea.style.display = 'block';
+                        document.getElementById('player-mem-timer').innerText = '30';
+                        
+                        let timeLeft = 30;
+                        if(timerInterval) clearInterval(timerInterval);
+                        timerInterval = setInterval(() => {
+                            timeLeft--;
+                            document.getElementById('player-mem-timer').innerText = timeLeft;
+                        }, 1000);
+                        
+                    } else if (data.type === 'hide_memory') {
+                        if(timerInterval) clearInterval(timerInterval);
+                        document.getElementById('player-memory-content').style.display = 'none';
+                        document.getElementById('player-mem-timer').innerText = "時間切れ！";
+                        
                     } else if (data.type === 'show_example') {
                         document.getElementById('player-q-title').innerText = data.title;
                         document.getElementById('player-q-example-text').innerHTML = data.exText;
                         document.getElementById('player-q-example-img').innerHTML = data.exImg ? `<img src="${data.exImg}">` : "";
                         showPage('player-example');
+                        
                     } else if (data.type === 'start_active') {
                         playerHintUsed = false;
                         document.getElementById('player-question-area').style.display = 'block';
