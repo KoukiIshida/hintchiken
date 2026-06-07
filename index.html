@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ヒントチキンレース</title>
-    <!-- PeerJS for WebRTC P2P communication -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <!-- QRCode.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #4CAF50; --bg: #f9f9f9; --text: #333; }
@@ -45,9 +43,6 @@
 </head>
 <body>
 
-    <!-- ==================== ホスト用画面 ==================== -->
-    
-    <!-- ホスト1ページ目：管理ページ -->
     <div id="host-p1" class="page">
         <h1>【管理ページ】クイズ事前登録</h1>
         
@@ -76,7 +71,6 @@
         <button onclick="saveAllData()" style="width: 100%; font-size: 20px; padding: 15px;">💾 全て保存してスタート画面へ</button>
     </div>
 
-    <!-- ホスト2ページ目：スタートページ -->
     <div id="host-p2" class="page">
         <h1>参加者待機室</h1>
         <div id="qr-container"></div>
@@ -92,7 +86,6 @@
         </div>
     </div>
 
-    <!-- ホスト3ページ目：ルール説明 -->
     <div id="host-p3" class="page">
         <h1>ルール説明</h1>
         <div id="display-rule-content"></div>
@@ -103,21 +96,18 @@
         </div>
     </div>
 
-    <!-- ホスト：記憶問題表示画面 -->
     <div id="host-memory" class="page">
         <h1>記憶問題 事前チェック</h1>
         <div class="timer-display" id="host-mem-timer">30</div>
         
         <div id="host-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            <!-- ここに事前問題が注入される -->
-        </div>
+            </div>
         
         <div style="text-align:center; margin-top:20px;">
             <button id="btn-mem-next" style="display:none;" onclick="setupQuestion(0)">0問目の例題へ</button>
         </div>
     </div>
 
-    <!-- ホスト4ページ目：例題/問題表示 -->
     <div id="host-p4" class="page">
         <h1 id="host-q-title"></h1>
         <h2>例題</h2>
@@ -125,12 +115,12 @@
         <div id="host-q-example-img"></div>
         <div style="text-align:center; margin-top:20px;">
             <button id="btn-start-question" onclick="startQuestionTimer()">問題スタート！</button>
+            <button id="btn-stop-question" style="display:none; background:#e74c3c;" onclick="stopQuestionTimer()">解答を締め切る</button>
             <button id="btn-show-answer" style="display:none;" onclick="changeHostScreen('host-p5')">正解発表へ</button>
         </div>
         <div class="timer-display" id="host-timer" style="display:none;">60</div>
     </div>
 
-    <!-- ホスト5ページ目：問題・ヒント・解答すべて表示 -->
     <div id="host-p5" class="page">
         <h1 id="host-a-title"></h1>
         <h3>問題</h3>
@@ -146,25 +136,19 @@
         </div>
     </div>
 
-    <!-- ホスト6ページ目：正解者一覧・順位 -->
     <div id="host-p6" class="page">
         <h1 id="host-r-title"></h1>
         <div id="ranking-container"></div>
         <div style="text-align:center; margin-top:20px;" id="next-q-btn-container">
-            <!-- 次へ進むボタンが動的に入る -->
-        </div>
+            </div>
     </div>
 
-    <!-- ホスト最終ページ：結果発表 -->
     <div id="host-final" class="page">
         <h1>🏆 最終結果発表 🏆</h1>
         <div id="final-ranking-container"></div>
     </div>
 
 
-    <!-- ==================== 参加者用画面 ==================== -->
-    
-    <!-- 参加者1ページ目：名前登録 -->
     <div id="player-entry" class="page">
         <h2>クイズに参加</h2>
         <p>名前を入力してください</p>
@@ -172,29 +156,24 @@
         <button onclick="joinGame()" style="width:100%;">参加する</button>
     </div>
 
-    <!-- 参加者待機ページ -->
     <div id="player-wait" class="page" style="text-align:center;">
         <h2>ホストの操作をお待ちください...</h2>
         <p>ゲームが始まるまでこのままお待ちください。</p>
     </div>
 
-    <!-- 参加者：ルール説明画面 -->
     <div id="player-rule" class="page">
         <h1>ルール説明</h1>
         <div id="player-rule-content"></div>
         <div id="player-rule-img-container"></div>
     </div>
 
-    <!-- 参加者：記憶問題表示画面 -->
     <div id="player-memory" class="page">
         <h2 style="color:#9C27B0;">事前問題（覚えよう！）</h2>
         <div class="timer-display" id="player-mem-timer">30</div>
         <div id="player-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            <!-- ここに事前問題が注入される -->
-        </div>
+            </div>
     </div>
 
-    <!-- 参加者2ページ目：例題表示 -->
     <div id="player-example" class="page">
         <h2 id="player-q-title"></h2>
         <h3>例題</h3>
@@ -202,7 +181,6 @@
         <div id="player-q-example-img"></div>
     </div>
 
-    <!-- 参加者3ページ目：アクティブ -->
     <div id="player-active" class="page">
         <div class="timer-display" id="player-timer">60</div>
         
@@ -343,7 +321,7 @@
             // ルール部分の復元
             document.getElementById('rule-editor').innerHTML = appData.ruleText || "ここにルールを入力...";
             if (appData.ruleImg) {
-                document.getElementById('rule-image-status').innerHTML = `<small>保存済画像あり</small>`;
+                document.getElementById('rule-image-status').innerHTML = `<small>保存済画像あり</small> <button type="button" onclick="removeRuleImage()" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button>`;
             } else {
                 document.getElementById('rule-image-status').innerHTML = "";
             }
@@ -365,7 +343,6 @@
                         <label style="cursor:pointer; color:#9C27B0;"><input type="checkbox" id="q-memory-${idx}" ${q.isMemory ? 'checked' : ''} onchange="toggleMemoryFields(${idx})"> <b>記憶</b></label>
                         
                         <div style="flex-grow: 1;"></div>
-                        <!-- 登録順の入れ替えボタン -->
                         <button type="button" onclick="moveQuestionUp(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▲ 上へ</button>
                         <button type="button" onclick="moveQuestionDown(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▼ 下へ</button>
                     </div>
@@ -377,23 +354,23 @@
                             <b style="color:#9C27B0;">◆ 事前問題 (テキスト / 画像)</b><br>
                             <div class="editor" contenteditable="true" id="q-preText-${idx}">${q.preText || ''}</div>
                             <input type="file" id="q-preImg-${idx}" accept="image/*"><br>
-                            ${q.preImg ? `<small>保存済画像あり</small><br>` : ''}
+                            ${q.preImg ? `<small>保存済画像あり</small> <button type="button" onclick="removeQuestionImage(${idx}, 'preImg')" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button><br>` : ''}
                         </div>
 
                         <b>例題 (テキスト / 画像)</b><br>
                         <div class="editor" contenteditable="true" id="q-exText-${idx}">${q.exText || ''}</div>
                         <input type="file" id="q-exImg-${idx}" accept="image/*"><br>
-                        ${q.exImg ? `<small>保存済画像あり</small><br>` : ''}
+                        ${q.exImg ? `<small>保存済画像あり</small> <button type="button" onclick="removeQuestionImage(${idx}, 'exImg')" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button><br>` : ''}
                         
                         <b>問題 (テキスト / 画像)</b><br>
                         <div class="editor" contenteditable="true" id="q-qText-${idx}">${q.qText || ''}</div>
                         <input type="file" id="q-qImg-${idx}" accept="image/*"><br>
-                        ${q.qImg ? `<small>保存済画像あり</small><br>` : ''}
+                        ${q.qImg ? `<small>保存済画像あり</small> <button type="button" onclick="removeQuestionImage(${idx}, 'qImg')" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button><br>` : ''}
                         
                         <b>ヒント (テキスト / 画像)</b><br>
                         <div class="editor" contenteditable="true" id="q-hText-${idx}">${q.hText || ''}</div>
                         <input type="file" id="q-hImg-${idx}" accept="image/*"><br>
-                        ${q.hImg ? `<small>保存済画像あり</small><br>` : ''}
+                        ${q.hImg ? `<small>保存済画像あり</small> <button type="button" onclick="removeQuestionImage(${idx}, 'hImg')" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button><br>` : ''}
                         
                         <b>解答 (テキストのみ、カンマ区切りで複数正答可)</b><br>
                         <input type="text" id="q-ans-${idx}" value="${q.ans || ''}"><br>
@@ -459,6 +436,23 @@
             const temp = appData.questions[idx];
             appData.questions[idx] = appData.questions[idx + 1];
             appData.questions[idx + 1] = temp;
+            renderAdminPage();
+        }
+
+        // --- 画像の削除処理 ---
+        async function removeRuleImage() {
+            if(!confirm("ルール画像を削除しますか？")) return;
+            await syncDOMToAppData();
+            appData.ruleImg = null;
+            await saveToDB('quizMasterData', appData);
+            renderAdminPage();
+        }
+
+        async function removeQuestionImage(idx, type) {
+            if(!confirm("この画像を削除しますか？")) return;
+            await syncDOMToAppData();
+            appData.questions[idx][type] = null;
+            await saveToDB('quizMasterData', appData);
             renderAdminPage();
         }
 
@@ -653,10 +647,8 @@
         function changeHostScreen(hostPage) {
             showPage(hostPage);
             if (hostPage === 'host-p3') {
-                // ホスト画面にルール表示
                 document.getElementById('display-rule-content').innerHTML = appData.ruleText;
                 document.getElementById('display-rule-img-container').innerHTML = appData.ruleImg ? `<img src="${appData.ruleImg}">` : "";
-                // 参加者にもルール画面を表示させる
                 broadcast('show_rule', { ruleText: appData.ruleText, ruleImg: appData.ruleImg });
             }
         }
@@ -732,6 +724,7 @@
             document.getElementById('host-q-example-img').innerHTML = q.exImg ? `<img src="${q.exImg}">` : "";
             
             document.getElementById('btn-start-question').style.display = 'inline-block';
+            document.getElementById('btn-stop-question').style.display = 'none';
             document.getElementById('btn-show-answer').style.display = 'none';
             document.getElementById('host-timer').style.display = 'none';
             
@@ -747,6 +740,7 @@
             const q = selectedQuestions[currentPlayIndex];
             
             document.getElementById('btn-start-question').style.display = 'none';
+            document.getElementById('btn-stop-question').style.display = 'inline-block';
             document.getElementById('host-timer').style.display = 'block';
             document.getElementById('host-timer').innerText = "60";
             
@@ -761,10 +755,20 @@
                 document.getElementById('host-timer').innerText = timeLeft;
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
+                    document.getElementById('btn-stop-question').style.display = 'none';
                     document.getElementById('btn-show-answer').style.display = 'inline-block';
                     broadcast('page', { page: 'player-wait' }); 
                 }
             }, 1000);
+        }
+
+        // --- 解答の強制締め切り ---
+        function stopQuestionTimer() {
+            if(timerInterval) clearInterval(timerInterval);
+            document.getElementById('host-timer').innerText = "終了！";
+            document.getElementById('btn-stop-question').style.display = 'none';
+            document.getElementById('btn-show-answer').style.display = 'inline-block';
+            broadcast('page', { page: 'player-wait' }); 
         }
 
         document.getElementById('btn-show-answer').addEventListener('click', () => {
