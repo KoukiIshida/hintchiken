@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ヒントチキンレース</title>
+    <!-- PeerJS for WebRTC P2P communication -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- QRCode.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #4CAF50; --bg: #f9f9f9; --text: #333; }
@@ -41,6 +43,9 @@
 </head>
 <body>
 
+    <!-- ==================== ホスト用画面 ==================== -->
+    
+    <!-- ホスト1ページ目：管理ページ -->
     <div id="host-p1" class="page">
         <h1>【管理ページ】クイズ事前登録</h1>
         
@@ -53,7 +58,9 @@
             <button type="button" onclick="document.execCommand('fontSize', false, '3')">標準</button>
         </div>
         <div id="rule-editor" class="editor" contenteditable="true">ここにルールを入力...</div>
-        <input type="file" id="rule-image-upload" accept="image/*">
+        <input type="file" id="rule-image-upload" accept="image/*"><br>
+        <div id="rule-image-status" style="margin-bottom:10px;"></div>
+        <button onclick="saveRule()" style="background:#2196F3; font-weight:bold;">💾 ルールだけを保存</button>
         
         <h3>2. 問題の登録</h3>
         <button onclick="addQuestionBlock()">＋ 新しい問題を追加する</button>
@@ -67,6 +74,7 @@
         <button onclick="saveAllData()" style="width: 100%; font-size: 20px; padding: 15px;">💾 全て保存してスタート画面へ</button>
     </div>
 
+    <!-- ホスト2ページ目：スタートページ -->
     <div id="host-p2" class="page">
         <h1>参加者待機室</h1>
         <div id="qr-container"></div>
@@ -82,6 +90,7 @@
         </div>
     </div>
 
+    <!-- ホスト3ページ目：ルール説明 -->
     <div id="host-p3" class="page">
         <h1>ルール説明</h1>
         <div id="display-rule-content"></div>
@@ -92,18 +101,21 @@
         </div>
     </div>
 
+    <!-- ホスト：記憶問題表示画面 -->
     <div id="host-memory" class="page">
         <h1>記憶問題 事前チェック</h1>
         <div class="timer-display" id="host-mem-timer">30</div>
         
         <div id="host-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            </div>
+            <!-- ここに事前問題が注入される -->
+        </div>
         
         <div style="text-align:center; margin-top:20px;">
             <button id="btn-mem-next" style="display:none;" onclick="setupQuestion(0)">0問目の例題へ</button>
         </div>
     </div>
 
+    <!-- ホスト4ページ目：例題/問題表示 -->
     <div id="host-p4" class="page">
         <h1 id="host-q-title"></h1>
         <h2>例題</h2>
@@ -116,6 +128,7 @@
         <div class="timer-display" id="host-timer" style="display:none;">60</div>
     </div>
 
+    <!-- ホスト5ページ目：問題・ヒント・解答すべて表示 -->
     <div id="host-p5" class="page">
         <h1 id="host-a-title"></h1>
         <h3>問題</h3>
@@ -131,19 +144,25 @@
         </div>
     </div>
 
+    <!-- ホスト6ページ目：正解者一覧・順位 -->
     <div id="host-p6" class="page">
         <h1 id="host-r-title"></h1>
         <div id="ranking-container"></div>
         <div style="text-align:center; margin-top:20px;" id="next-q-btn-container">
-            </div>
+            <!-- 次へ進むボタンが動的に入る -->
+        </div>
     </div>
 
+    <!-- ホスト最終ページ：結果発表 -->
     <div id="host-final" class="page">
         <h1>🏆 最終結果発表 🏆</h1>
         <div id="final-ranking-container"></div>
     </div>
 
 
+    <!-- ==================== 参加者用画面 ==================== -->
+    
+    <!-- 参加者1ページ目：名前登録 -->
     <div id="player-entry" class="page">
         <h2>クイズに参加</h2>
         <p>名前を入力してください</p>
@@ -151,18 +170,22 @@
         <button onclick="joinGame()" style="width:100%;">参加する</button>
     </div>
 
+    <!-- 参加者待機ページ -->
     <div id="player-wait" class="page" style="text-align:center;">
         <h2>ホストの操作をお待ちください...</h2>
         <p>ゲームが始まるまでこのままお待ちください。</p>
     </div>
 
+    <!-- 参加者：記憶問題表示画面 -->
     <div id="player-memory" class="page">
         <h2 style="color:#9C27B0;">事前問題（覚えよう！）</h2>
         <div class="timer-display" id="player-mem-timer">30</div>
         <div id="player-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            </div>
+            <!-- ここに事前問題が注入される -->
+        </div>
     </div>
 
+    <!-- 参加者2ページ目：例題表示 -->
     <div id="player-example" class="page">
         <h2 id="player-q-title"></h2>
         <h3>例題</h3>
@@ -170,6 +193,7 @@
         <div id="player-q-example-img"></div>
     </div>
 
+    <!-- 参加者3ページ目：アクティブ -->
     <div id="player-active" class="page">
         <div class="timer-display" id="player-timer">60</div>
         
@@ -308,7 +332,14 @@
          * ホスト処理：管理画面
          * ======================================================== */
         function renderAdminPage() {
+            // ルール部分の復元
             document.getElementById('rule-editor').innerHTML = appData.ruleText || "ここにルールを入力...";
+            if (appData.ruleImg) {
+                document.getElementById('rule-image-status').innerHTML = `<small>保存済画像あり</small>`;
+            } else {
+                document.getElementById('rule-image-status').innerHTML = "";
+            }
+
             const container = document.getElementById('questions-container');
             container.innerHTML = "";
             appData.questions.forEach((q, idx) => {
@@ -399,6 +430,18 @@
             }
         }
 
+        // --- ルールだけを保存 ---
+        async function saveRule() {
+            appData.ruleText = document.getElementById('rule-editor').innerHTML;
+            const ruleImgFile = document.getElementById('rule-image-upload').files[0];
+            if (ruleImgFile) {
+                appData.ruleImg = await fileToBase64(ruleImgFile);
+            }
+            await saveToDB('quizMasterData', appData);
+            alert("ルール説明を保存しました！");
+            renderAdminPage(); // 画像ありの表記を更新
+        }
+
         // --- 個別保存処理 ---
         async function saveSingleQuestion(idx) {
             appData.questions[idx].genre = document.getElementById(`q-genre-${idx}`).value;
@@ -429,7 +472,7 @@
             if (ruleImgFile) appData.ruleImg = await fileToBase64(ruleImgFile);
 
             for (let idx = 0; idx < appData.questions.length; idx++) {
-                if(!document.getElementById(`q-genre-${idx}`)) continue; // 削除された枠はスキップ
+                if(!document.getElementById(`q-genre-${idx}`)) continue; 
                 appData.questions[idx].genre = document.getElementById(`q-genre-${idx}`).value;
                 appData.questions[idx].exText = document.getElementById(`q-exText-${idx}`).innerHTML;
                 appData.questions[idx].qText = document.getElementById(`q-qText-${idx}`).innerHTML;
@@ -460,7 +503,6 @@
         function updateSelectedList() {
             const listDiv = document.getElementById('selected-questions-list');
             
-            // 出題するチェックが入っているものを抽出
             let includedQs = [];
             appData.questions.forEach((q, idx) => {
                 const cb = document.getElementById(`q-include-${idx}`);
@@ -470,7 +512,6 @@
                 }
             });
 
-            // order順にソートし、実際のorderを振り直す
             includedQs.sort((a,b) => a.order - b.order);
             includedQs.forEach((q, i) => {
                 appData.questions[q.origIdx].order = i;
@@ -502,9 +543,8 @@
             if(currentIndex === -1) return;
             
             const targetIndex = currentIndex + direction;
-            if(targetIndex < 0 || targetIndex >= includedQs.length) return; // 一番上か一番下
+            if(targetIndex < 0 || targetIndex >= includedQs.length) return; 
             
-            // Orderの数値を入れ替え
             const tempOrder = includedQs[currentIndex].order;
             appData.questions[includedQs[currentIndex].origIdx].order = includedQs[targetIndex].order;
             appData.questions[includedQs[targetIndex].origIdx].order = tempOrder;
@@ -618,7 +658,6 @@
             document.getElementById('host-mem-timer').innerText = '30';
             document.getElementById('btn-mem-next').style.display = 'none';
 
-            // 参加者に送信
             broadcast('show_memory', { html: html });
 
             let timeLeft = 30;
