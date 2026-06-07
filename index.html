@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>リアルタイム画像クイズシステム</title>
+    <title>ヒントチキンレース</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
@@ -23,7 +23,8 @@
         /* 折りたたみ用スタイル */
         .q-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #e0e0e0; cursor: pointer; font-weight: bold; transition: background 0.2s; }
         .q-header:hover { background: #d5d5d5; }
-        .q-details { display: none; padding: 15px; border-top: 1px solid #ddd; }
+        .q-summary-controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; padding: 10px 15px; background: #eceff1; border-bottom: 1px solid #ddd; }
+        .q-details { display: none; padding: 15px; }
         .q-details.open { display: block; }
         
         img { max-width: 100%; max-height: 300px; object-fit: contain; margin: 10px 0; border: 1px solid #eee; }
@@ -155,7 +156,7 @@
             <div id="player-a-q-img"></div>
         </div>
 
-        <button id="btn-use-hint" onclick="useHint()" style="background:#f39c12; width:100%; margin:20px 0;">💡 ヒントを見る（順位が下がります）</button>
+        <button id="btn-use-hint" onclick="useHint()" style="background:#f39c12; width:100%; margin:20px 0;">💡 ヒントを見る</button>
 
         <div id="player-hint-area" style="display:none;">
             <h3>ヒント</h3>
@@ -287,8 +288,20 @@
                         <div>枠${idx} ${idx===0 ? '(0問目/例題)' : ''} - ジャンル: <span id="q-head-genre-${idx}">${q.genre || '未設定'}</span></div>
                         <div id="q-toggle-icon-${idx}">▼ 開いて編集</div>
                     </div>
+                    
+                    <div class="q-summary-controls">
+                        <label style="cursor:pointer;"><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label>
+                        <label style="cursor:pointer;"><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> <b>出題済み</b></label>
+                        <div>出題順: <input type="number" style="width:60px; margin:0; padding:5px;" id="q-order-${idx}" value="${q.order || idx}" onchange="updateSelectedList()"></div>
+                        
+                        <div style="flex-grow: 1;"></div>
+                        
+                        <button type="button" onclick="moveQuestionUp(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▲ 上へ</button>
+                        <button type="button" onclick="moveQuestionDown(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▼ 下へ</button>
+                    </div>
+
                     <div class="q-details" id="q-details-${idx}">
-                        <label>ジャンル: <input type="text" id="q-genre-${idx}" value="${q.genre || ''}" oninput="document.getElementById('q-head-genre-${idx}').innerText = this.value || '未設定'"></label><br>
+                        <label>ジャンル: <input type="text" id="q-genre-${idx}" value="${q.genre || ''}" oninput="document.getElementById('q-head-genre-${idx}').innerText = this.value || '未設定'; updateSelectedList();"></label><br>
                         
                         <b>例題 (テキスト / 画像)</b><br>
                         <div class="editor" contenteditable="true" id="q-exText-${idx}">${q.exText || ''}</div>
@@ -309,10 +322,8 @@
                         <input type="text" id="q-ans-${idx}" value="${q.ans || ''}"><br>
                         
                         <hr>
-                        <label><input type="checkbox" id="q-include-${idx}" ${q.include ? 'checked' : ''} onchange="updateSelectedList()"> <b>出題する</b></label> | 
-                        <label><input type="checkbox" id="q-done-${idx}" ${q.done ? 'checked' : ''}> 出題済み</label> |
-                        出題順: <input type="number" style="width:60px;" id="q-order-${idx}" value="${q.order || idx}" onchange="updateSelectedList()">
-                        <button onclick="removeQuestion(${idx})" style="background:#e74c3c; float:right;">削除</button>
+                        <button onclick="removeQuestion(${idx})" style="background:#e74c3c; float:right;">この問題を削除</button>
+                        <div style="clear:both;"></div>
                     </div>
                 `;
                 container.appendChild(div);
@@ -320,7 +331,6 @@
             updateSelectedList();
         }
 
-        // 折りたたみ切り替え関数
         function toggleQDetails(idx) {
             const details = document.getElementById(`q-details-${idx}`);
             const icon = document.getElementById(`q-toggle-icon-${idx}`);
@@ -351,8 +361,9 @@
             appData.questions.forEach((q, idx) => {
                 const cb = document.getElementById(`q-include-${idx}`);
                 const ord = document.getElementById(`q-order-${idx}`);
+                const genreField = document.getElementById(`q-genre-${idx}`);
                 if (cb && cb.checked) {
-                    temp.push({ genre: document.getElementById(`q-genre-${idx}`).value, order: parseInt(ord.value) || 0, origIdx: idx });
+                    temp.push({ genre: genreField.value, order: parseInt(ord.value) || 0, origIdx: idx });
                 }
             });
             temp.sort((a,b) => a.order - b.order);
@@ -363,7 +374,8 @@
             listDiv.innerHTML = html;
         }
 
-        async function saveAllData() {
+        // DOMの入力状態をJSのデータに一時同期させる（保存や並べ替えの前に行う）
+        async function syncDOMToAppData() {
             appData.ruleText = document.getElementById('rule-editor').innerHTML;
             const ruleImgFile = document.getElementById('rule-image-upload').files[0];
             if (ruleImgFile) appData.ruleImg = await fileToBase64(ruleImgFile);
@@ -383,7 +395,46 @@
                 const qF = document.getElementById(`q-qImg-${idx}`).files[0]; if(qF) q.qImg = await fileToBase64(qF);
                 const hF = document.getElementById(`q-hImg-${idx}`).files[0]; if(hF) q.hImg = await fileToBase64(hF);
             }
+        }
 
+        // 順番を上に移動
+        async function moveQuestionUp(idx) {
+            if (idx <= 0) return;
+            await syncDOMToAppData();
+            
+            // データを入れ替える
+            const temp = appData.questions[idx];
+            appData.questions[idx] = appData.questions[idx - 1];
+            appData.questions[idx - 1] = temp;
+            
+            // 出題順の数字も入れ替える
+            const tempOrder = appData.questions[idx].order;
+            appData.questions[idx].order = appData.questions[idx - 1].order;
+            appData.questions[idx - 1].order = tempOrder;
+
+            renderAdminPage();
+        }
+
+        // 順番を下に移動
+        async function moveQuestionDown(idx) {
+            if (idx >= appData.questions.length - 1) return;
+            await syncDOMToAppData();
+            
+            // データを入れ替える
+            const temp = appData.questions[idx];
+            appData.questions[idx] = appData.questions[idx + 1];
+            appData.questions[idx + 1] = temp;
+
+            // 出題順の数字も入れ替える
+            const tempOrder = appData.questions[idx].order;
+            appData.questions[idx].order = appData.questions[idx + 1].order;
+            appData.questions[idx + 1].order = tempOrder;
+
+            renderAdminPage();
+        }
+
+        async function saveAllData() {
+            await syncDOMToAppData();
             await saveToDB('quizMasterData', appData);
             alert("保存しました。スタート画面へ移動します。");
             window.location.href = window.location.pathname; 
@@ -401,7 +452,6 @@
                 document.getElementById('join-url').innerText = url;
                 document.getElementById('join-url').href = url;
                 
-                // QRコードを生成（確実に表示されるようにコンテナをリセット）
                 document.getElementById("qr-container").innerHTML = "";
                 new QRCode(document.getElementById("qr-container"), { text: url, width: 200, height: 200 });
                 
@@ -466,7 +516,6 @@
         }
 
         function setupQuestion(listIndex) {
-            // エラーガード: 出題する問題が0件の場合
             if (selectedQuestions.length === 0) {
                 alert("エラー：「出題する」にチェックが入っている問題がありません！\n管理画面に戻り、出題したい問題にチェックを入れて保存し直してください。");
                 return;
@@ -732,7 +781,7 @@
                         document.getElementById('player-hint-area').style.display = 'none';
                         document.getElementById('btn-use-hint').style.display = 'block';
                         document.getElementById('btn-use-hint').disabled = false;
-                        document.getElementById('btn-use-hint').innerText = "💡 ヒントを見る（順位が下がります）";
+                        document.getElementById('btn-use-hint').innerText = "💡 ヒントを見る";
                         document.getElementById('player-answer-input').value = "";
                         document.getElementById('player-answer-input').disabled = false;
                         document.getElementById('btn-submit-answer').disabled = false;
