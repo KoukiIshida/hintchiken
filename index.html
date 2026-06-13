@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ヒントチキンレース</title>
-    <!-- PeerJS for WebRTC P2P communication -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <!-- QRCode.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #4CAF50; --bg: #f9f9f9; --text: #333; }
@@ -45,9 +43,6 @@
 </head>
 <body>
 
-    <!-- ==================== ホスト用画面 ==================== -->
-    
-    <!-- ホスト1ページ目：管理ページ -->
     <div id="host-p1" class="page">
         <h1>【管理ページ】クイズ事前登録</h1>
         
@@ -76,7 +71,6 @@
         <button onclick="saveAllData()" style="width: 100%; font-size: 20px; padding: 15px;">💾 全て保存してスタート画面へ</button>
     </div>
 
-    <!-- ホスト2ページ目：スタートページ -->
     <div id="host-p2" class="page">
         <h1>参加者待機室</h1>
         <div id="qr-container"></div>
@@ -92,7 +86,6 @@
         </div>
     </div>
 
-    <!-- ホスト3ページ目：ルール説明 -->
     <div id="host-p3" class="page">
         <h1>ルール説明</h1>
         <div id="display-rule-content"></div>
@@ -103,21 +96,18 @@
         </div>
     </div>
 
-    <!-- ホスト：記憶問題表示画面 -->
     <div id="host-memory" class="page">
         <h1>記憶問題 事前チェック</h1>
         <div class="timer-display" id="host-mem-timer">30</div>
         
         <div id="host-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            <!-- ここに事前問題が注入される -->
-        </div>
+            </div>
         
         <div style="text-align:center; margin-top:20px;">
             <button id="btn-mem-next" style="display:none;" onclick="setupQuestion(0)">0問目の例題へ</button>
         </div>
     </div>
 
-    <!-- ホスト4ページ目：例題/問題表示 -->
     <div id="host-p4" class="page">
         <h1 id="host-q-title"></h1>
         <h2 id="host-q-subtitle">例題</h2>
@@ -131,7 +121,6 @@
         <div class="timer-display" id="host-timer" style="display:none;">60</div>
     </div>
 
-    <!-- ホスト5ページ目：問題・ヒント・解答すべて表示 -->
     <div id="host-p5" class="page">
         <h1 id="host-a-title"></h1>
         <h3>問題</h3>
@@ -147,55 +136,45 @@
         </div>
     </div>
 
-    <!-- ホスト6ページ目：正解者一覧・順位 -->
     <div id="host-p6" class="page">
         <h1 id="host-r-title"></h1>
         <div id="ranking-container"></div>
         <div style="text-align:center; margin-top:20px;" id="next-q-btn-container">
-            <!-- 次へ進むボタンが動的に入る -->
-        </div>
+            </div>
     </div>
 
-    <!-- ホスト最終ページ：結果発表 -->
     <div id="host-final" class="page">
         <h1>🏆 最終結果発表 🏆</h1>
         <div id="final-ranking-container"></div>
     </div>
 
 
-    <!-- ==================== 参加者用画面 ==================== -->
-    
-    <!-- 参加者1ページ目：名前登録 -->
     <div id="player-entry" class="page">
         <h2>クイズに参加</h2>
         <p>名前を入力してください</p>
         <input type="text" id="player-name-input" placeholder="ニックネーム">
         <button onclick="joinGame()" style="width:100%;">参加する</button>
+        <p id="player-rejoin-notice" style="display:none; color:#e74c3c; font-size:12px; margin-top:10px;">※前回の接続データがあります。同じ名前で参加すると得点が付与されます。</p>
     </div>
 
-    <!-- 参加者待機ページ -->
     <div id="player-wait" class="page" style="text-align:center;">
         <h2>ホストの操作をお待ちください...</h2>
         <p>このままでお待ちください。</p>
     </div>
 
-    <!-- 参加者：ルール説明画面 -->
     <div id="player-rule" class="page">
         <h1>ルール説明</h1>
         <div id="player-rule-content"></div>
         <div id="player-rule-img-container"></div>
     </div>
 
-    <!-- 参加者：記憶問題表示画面 -->
     <div id="player-memory" class="page">
         <h2 style="color:#9C27B0;">事前問題（覚えよう！）</h2>
         <div class="timer-display" id="player-mem-timer">30</div>
         <div id="player-memory-content" style="background:#fff; padding:15px; border-radius:8px; border:2px solid #9C27B0;">
-            <!-- ここに事前問題が注入される -->
-        </div>
+            </div>
     </div>
 
-    <!-- 参加者2ページ目：例題表示 -->
     <div id="player-example" class="page">
         <h2 id="player-q-title"></h2>
         <h3>例題</h3>
@@ -203,7 +182,6 @@
         <div id="player-q-example-img"></div>
     </div>
 
-    <!-- 参加者3ページ目：アクティブ -->
     <div id="player-active" class="page">
         <div class="timer-display" id="player-timer">60</div>
         
@@ -228,6 +206,30 @@
     </div>
 
     <script>
+        /** ========================================================
+         * スリープ防止 (Wake Lock API) 機能
+         * ======================================================== */
+        let wakeLock = null;
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Screen Wake Lock released');
+                    });
+                    console.log('Screen Wake Lock acquired');
+                }
+            } catch (err) {
+                console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+            }
+        }
+
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+
         /** ========================================================
          * IndexedDB ラッパー
          * ======================================================== */
@@ -288,12 +290,14 @@
         };
         let currentPlayIndex = 0; 
         let selectedQuestions = []; 
+        let isAcceptingAnswers = false; // 解答受付中かどうかのフラグ
         
         let peer = null;
         let connections = {}; 
         let myConnection = null; 
         let roomID = "";
         let playersData = {}; 
+        let playerUUIDs = {}; 
         let isHost = false;
 
         let timerInterval = null;
@@ -317,6 +321,14 @@
             if (roomParam) {
                 isHost = false;
                 roomID = roomParam;
+                
+                const savedName = localStorage.getItem('quiz_name_' + roomID);
+                const savedUUID = localStorage.getItem('quiz_uuid_' + roomID);
+                if (savedName && savedUUID) {
+                    document.getElementById('player-name-input').value = savedName;
+                    document.getElementById('player-rejoin-notice').style.display = 'block';
+                }
+                
                 showPage('player-entry');
                 initPlayerPeer();
             } else {
@@ -341,7 +353,6 @@
          * ホスト処理：管理画面
          * ======================================================== */
         function renderAdminPage() {
-            // ルール部分の復元
             document.getElementById('rule-editor').innerHTML = appData.ruleText || "ここにルールを入力...";
             if (appData.ruleImg) {
                 document.getElementById('rule-image-status').innerHTML = `<small>保存済画像あり</small> <button type="button" onclick="removeRuleImage()" style="background:#e74c3c; padding:2px 5px; font-size:12px; border-radius:3px;">✖ 削除</button>`;
@@ -366,7 +377,6 @@
                         <label style="cursor:pointer; color:#9C27B0;"><input type="checkbox" id="q-memory-${idx}" ${q.isMemory ? 'checked' : ''} onchange="toggleMemoryFields(${idx})"> <b>記憶</b></label>
                         
                         <div style="flex-grow: 1;"></div>
-                        <!-- 登録順の入れ替えボタン -->
                         <button type="button" onclick="moveQuestionUp(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▲ 上へ</button>
                         <button type="button" onclick="moveQuestionDown(${idx})" style="padding: 5px 10px; margin: 0; background: #607D8B; border-radius:4px;">▼ 下へ</button>
                     </div>
@@ -631,22 +641,63 @@
                 
                 conn.on('data', (data) => {
                     if (data.type === 'join') {
-                        // scoreDetails配列を初期化して追加
-                        playersData[conn.peer] = { name: data.name, totalScore: 0, scoreDetails: [], currentAnswer: null, timeTaken: 999999, hintUsed: false, rank: 0 };
+                        let oldScore = 0;
+                        let oldScoreDetails = [];
+                        
+                        if (data.uuid && playerUUIDs[data.uuid]) {
+                            const oldPeerId = playerUUIDs[data.uuid];
+                            if (playersData[oldPeerId]) {
+                                oldScore = playersData[oldPeerId].totalScore || 0;
+                                oldScoreDetails = playersData[oldPeerId].scoreDetails || [];
+                                delete playersData[oldPeerId];
+                            }
+                        }
+                        
+                        if (data.uuid) {
+                            playerUUIDs[data.uuid] = conn.peer;
+                        }
+
+                        playersData[conn.peer] = { 
+                            name: data.name, 
+                            totalScore: oldScore, 
+                            scoreDetails: oldScoreDetails, 
+                            currentAnswer: null, 
+                            timeTaken: 999999, 
+                            hintUsed: false, 
+                            rank: 0 
+                        };
                         updatePlayerListUI();
+                        
                         conn.send({ type: 'page', page: 'player-wait' });
+                        
                     } else if (data.type === 'answer') {
-                        if (playersData[conn.peer]) {
-                            playersData[conn.peer].currentAnswer = data.answer;
-                            playersData[conn.peer].timeTaken = data.timeTaken;
-                            playersData[conn.peer].hintUsed = data.hintUsed;
+                        // 答えの判定をホスト側で行う
+                        if (playersData[conn.peer] && isAcceptingAnswers) {
+                            const q = selectedQuestions[currentPlayIndex];
+                            const validAnswers = q.ans.split(',').map(s => s.trim().toLowerCase());
+                            const isCorrect = validAnswers.includes(data.answer.trim().toLowerCase());
+                            
+                            if (isCorrect) {
+                                // 最初の正解のみ記録する
+                                if (!playersData[conn.peer].currentAnswer) {
+                                    playersData[conn.peer].currentAnswer = data.answer;
+                                    playersData[conn.peer].timeTaken = data.timeTaken;
+                                    playersData[conn.peer].hintUsed = data.hintUsed;
+                                }
+                                conn.send({ type: 'answer_result', correct: true });
+                            } else {
+                                // 不正解であることを参加者に通知
+                                conn.send({ type: 'answer_result', correct: false });
+                            }
+                        } else if (!isAcceptingAnswers) {
+                            // 受付終了後の送信
+                            conn.send({ type: 'answer_result', correct: false, message: 'timeout' });
                         }
                     }
                 });
 
                 conn.on('close', () => {
                     delete connections[conn.peer];
-                    delete playersData[conn.peer];
                     updatePlayerListUI();
                 });
             });
@@ -656,9 +707,11 @@
             const list = document.getElementById('player-list');
             list.innerHTML = "";
             let count = 0;
-            for (let id in playersData) {
-                list.innerHTML += `<li>👤 ${playersData[id].name}</li>`;
-                count++;
+            for (let id in connections) { 
+                if(playersData[id]) {
+                    list.innerHTML += `<li>👤 ${playersData[id].name}</li>`;
+                    count++;
+                }
             }
             document.getElementById('player-count').innerText = count;
         }
@@ -734,6 +787,8 @@
             if(listIndex >= selectedQuestions.length) return; 
             
             currentPlayIndex = listIndex;
+            isAcceptingAnswers = false; // 解答受付はまだ
+            
             const q = selectedQuestions[currentPlayIndex];
             const isQ0 = (q.order === 0 || currentPlayIndex === 0); 
             
@@ -745,7 +800,7 @@
             }
 
             document.getElementById('host-q-title').innerText = `${isQ0 ? '0問目(例題)' : currentPlayIndex + '問目'} : ${q.genre}`;
-            document.getElementById('host-q-subtitle').innerText = "例題"; // 例題表示に戻す
+            document.getElementById('host-q-subtitle').innerText = "例題";
             document.getElementById('host-q-example-text').innerHTML = q.exText;
             document.getElementById('host-q-example-img').innerHTML = q.exImg ? `<img src="${q.exImg}">` : "";
             
@@ -770,11 +825,12 @@
             document.getElementById('host-timer').style.display = 'block';
             document.getElementById('host-timer').innerText = "60";
             
-            // ホスト側の画面も「問題」に切り替える
             document.getElementById('host-q-subtitle').innerText = "問題";
             document.getElementById('host-q-example-text').innerHTML = q.qText;
             document.getElementById('host-q-example-img').innerHTML = q.qImg ? `<img src="${q.qImg}">` : "";
             
+            isAcceptingAnswers = true;
+
             broadcast('start_active', {
                 qText: q.qText, qImg: q.qImg, hText: q.hText, hImg: q.hImg
             });
@@ -786,6 +842,7 @@
                 document.getElementById('host-timer').innerText = timeLeft;
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
+                    isAcceptingAnswers = false;
                     document.getElementById('btn-stop-question').style.display = 'none';
                     document.getElementById('btn-show-answer').style.display = 'inline-block';
                     broadcast('page', { page: 'player-wait' }); 
@@ -793,9 +850,9 @@
             }, 1000);
         }
 
-        // --- 解答の強制締め切り ---
         function stopQuestionTimer() {
             if(timerInterval) clearInterval(timerInterval);
+            isAcceptingAnswers = false;
             document.getElementById('host-timer').innerText = "終了！";
             document.getElementById('btn-stop-question').style.display = 'none';
             document.getElementById('btn-show-answer').style.display = 'inline-block';
@@ -819,13 +876,12 @@
             const isQ0 = currentPlayIndex === 0;
             document.getElementById('host-r-title').innerText = `${isQ0 ? '0問目(例題)' : currentPlayIndex + '問目'} 正解者一覧`;
             
-            const validAnswers = q.ans.split(',').map(s => s.trim().toLowerCase());
             let correctPlayers = [];
             
             for (let id in playersData) {
                 const p = playersData[id];
-                if (!p.currentAnswer) continue;
-                if (validAnswers.includes(p.currentAnswer.trim().toLowerCase()) && p.timeTaken <= 60000) {
+                // currentAnswer は正解時のみセットされるため、これが存在すれば正解者
+                if (p.currentAnswer && p.timeTaken <= 60000) {
                     correctPlayers.push({...p, id: id});
                 }
             }
@@ -851,25 +907,24 @@
                 
                 if (!isQ0) {
                     let bonus = 0;
-                    if (p.rank === 1) bonus = 20;
-                    else if (p.rank === 2) bonus = 10;
-                    else if (p.rank === 3) bonus = 5;
+                    if (p.rank === 1) bonus = 21; // ボーナス点変更
+                    else if (p.rank === 2) bonus = 8;
+                    else if (p.rank === 3) bonus = 3;
                     
                     playersData[p.id].totalScore += (10 + bonus);
-                    playersData[p.id].currentGained = (10 + bonus); // 内訳記録用の一時保存
+                    playersData[p.id].currentGained = (10 + bonus); 
                 }
 
                 prevHint = p.hintUsed;
                 prevTime = p.timeTaken;
             });
 
-            // 内訳（scoreDetails）を全員分更新する
             if (!isQ0) {
                 for (let id in playersData) {
                     let pts = playersData[id].currentGained || 0;
                     if (!playersData[id].scoreDetails) playersData[id].scoreDetails = [];
                     playersData[id].scoreDetails.push(`${currentPlayIndex}問目:${pts}点`);
-                    playersData[id].currentGained = 0; // 次回のためにリセット
+                    playersData[id].currentGained = 0; 
                 }
             }
 
@@ -879,8 +934,9 @@
             if (correctPlayers.length === 0) {
                 container.innerHTML = "<p>正解者はいませんでした。</p>";
             } else {
-                // 正解者全員の名前を一覧表示（上位表示の前に追加）
-                const listHtml = correctPlayers.map(p => p.name).join('さん、') + 'さん';
+                // 五十音順にソートし、改行で表示
+                const sortedAllCorrect = [...correctPlayers].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                const listHtml = sortedAllCorrect.map(p => p.name + 'さん').join('<br>');
                 const topLabel = document.createElement('div');
                 topLabel.innerHTML = `<div style="padding:15px; background:#e8f5e9; border:1px solid #c8e6c9; margin-bottom:20px; border-radius:4px; text-align:center;"><b>【 正解者 】</b><br>${listHtml}</div>`;
                 container.appendChild(topLabel);
@@ -893,7 +949,8 @@
                         btn.innerText = `👑 ${rankNum}位を表示`;
                         btn.onclick = () => {
                             let text = `<h3>${rankNum}位</h3>`;
-                            rankPlayers.forEach(rp => {
+                            // ランク内でも五十音順に並べ替える
+                            rankPlayers.sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(rp => {
                                 text += `<p>${rp.name}さん (${(rp.timeTaken/1000).toFixed(2)}秒 / ヒント${rp.hintUsed ? 'あり' : 'なし'})</p>`;
                             });
                             btn.innerHTML = text;
@@ -910,8 +967,12 @@
                     btn.className = 'hidden-result';
                     btn.innerText = `4位以下を表示`;
                     btn.onclick = () => {
-                        let text = `<h3>4位以下 正解者</h3><ul>`;
-                        others.forEach(op => {
+                        let text = `<h3>4位以下 正解者</h3><ul style="text-align:left; display:inline-block;">`;
+                        // 4位以下も順位順・五十音順に表示
+                        others.sort((a,b) => {
+                            if(a.rank !== b.rank) return a.rank - b.rank;
+                            return a.name.localeCompare(b.name, 'ja');
+                        }).forEach(op => {
                             text += `<li>${op.rank}位: ${op.name}さん (${(op.timeTaken/1000).toFixed(2)}秒 / ヒント${op.hintUsed ? 'あり' : 'なし'})</li>`;
                         });
                         text += `</ul>`;
@@ -965,7 +1026,7 @@
                     btn.innerText = `🏆 総合${rankNum}位を表示`;
                     btn.onclick = () => {
                         let text = `<h3>総合${rankNum}位</h3>`;
-                        rankers.forEach(r => { 
+                        rankers.sort((a,b) => a.name.localeCompare(b.name, 'ja')).forEach(r => { 
                             let details = (r.scoreDetails && r.scoreDetails.length > 0) ? r.scoreDetails.join(' / ') : '得点なし';
                             text += `<p style="margin-bottom:15px;"><b>${r.name}さん ${r.totalScore}点</b><br><span style="font-size:13px; color:#555;">[内訳] ${details}</span></p>`; 
                         });
@@ -984,7 +1045,10 @@
                 btn.innerText = `総合4位以下を表示`;
                 btn.onclick = () => {
                     let text = `<h3>総合4位以下</h3><ul style="text-align:left; display:inline-block;">`;
-                    others.forEach(o => { 
+                    others.sort((a,b) => {
+                        if(a.finalRank !== b.finalRank) return a.finalRank - b.finalRank;
+                        return a.name.localeCompare(b.name, 'ja');
+                    }).forEach(o => { 
                         let details = (o.scoreDetails && o.scoreDetails.length > 0) ? o.scoreDetails.join(' / ') : '得点なし';
                         text += `<li style="margin-bottom:10px;"><b>${o.finalRank}位: ${o.name}さん ${o.totalScore}点</b><br><span style="font-size:13px; color:#555;">[内訳] ${details}</span></li>`; 
                     });
@@ -1015,10 +1079,19 @@
             const name = document.getElementById('player-name-input').value;
             if(!name) return alert("名前を入力してください");
             
+            requestWakeLock();
+
+            let myUUID = localStorage.getItem('quiz_uuid_' + roomID);
+            if (!myUUID) {
+                myUUID = 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('quiz_uuid_' + roomID, myUUID);
+            }
+            localStorage.setItem('quiz_name_' + roomID, name);
+            
             const conn = myConnection.connect(roomID);
             conn.on('open', () => {
                 peer = conn; 
-                peer.send({ type: 'join', name: name });
+                peer.send({ type: 'join', name: name, uuid: myUUID });
                 showPage('player-wait');
 
                 peer.on('data', (data) => {
@@ -1063,6 +1136,7 @@
                         document.getElementById('player-answer-input').value = "";
                         document.getElementById('player-answer-input').disabled = false;
                         document.getElementById('btn-submit-answer').disabled = false;
+                        document.getElementById('btn-submit-answer').innerText = "送信";
                         
                         document.getElementById('player-a-q-text').innerHTML = data.qText;
                         document.getElementById('player-a-q-img').innerHTML = data.qImg ? `<img src="${data.qImg}">` : "";
@@ -1084,6 +1158,25 @@
                                 document.getElementById('btn-submit-answer').disabled = true;
                             }
                         }, 1000);
+                        
+                    } else if (data.type === 'answer_result') {
+                        // 回答の判定結果を受け取る
+                        if (data.correct) {
+                            if(timerInterval) clearInterval(timerInterval);
+                            document.getElementById('btn-submit-answer').innerText = "正解！";
+                            showPage('player-wait');
+                        } else if (data.message === 'timeout') {
+                            if(timerInterval) clearInterval(timerInterval);
+                            showPage('player-wait');
+                        } else {
+                            // 不正解の場合：入力をクリアして再度入力可能にする
+                            alert("不正解！もう一度入力してください。");
+                            document.getElementById('player-answer-input').value = "";
+                            document.getElementById('player-answer-input').disabled = false;
+                            document.getElementById('btn-submit-answer').disabled = false;
+                            document.getElementById('btn-submit-answer').innerText = "送信";
+                            document.getElementById('player-answer-input').focus();
+                        }
                     }
                 });
             });
@@ -1102,12 +1195,13 @@
             if(!ans.trim()) return alert("解答を入力してください");
 
             const timeTaken = Date.now() - playerStartTime;
-            peer.send({ type: 'answer', answer: ans, timeTaken: timeTaken, hintUsed: playerHintUsed });
             
-            clearInterval(timerInterval);
+            // 一時的にボタンを無効化して判定を待つ
             document.getElementById('player-answer-input').disabled = true;
             document.getElementById('btn-submit-answer').disabled = true;
-            showPage('player-wait');
+            document.getElementById('btn-submit-answer').innerText = "判定中...";
+            
+            peer.send({ type: 'answer', answer: ans, timeTaken: timeTaken, hintUsed: playerHintUsed });
         }
 
     </script>
